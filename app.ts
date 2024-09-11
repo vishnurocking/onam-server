@@ -1,3 +1,5 @@
+// C:\Users\91999\MERN\LMS-onam\server\app.ts
+
 require("dotenv").config();
 import express, { NextFunction, Request, Response } from "express";
 export const app = express();
@@ -10,7 +12,7 @@ import orderRouter from "./routes/order.route";
 import notificationRouter from "./routes/notification.route";
 import analyticsRouter from "./routes/analytics.route";
 import layoutRouter from "./routes/layout.route";
-import { rateLimit } from 'express-rate-limit'
+import { rateLimit } from "express-rate-limit";
 
 // body parser
 app.use(express.json({ limit: "50mb" }));
@@ -28,11 +30,11 @@ app.use(
 
 // api requests limit
 const limiter = rateLimit({
-	windowMs: 15 * 60 * 1000,
-	max: 100, 
-	standardHeaders: 'draft-7', 
-	legacyHeaders: false, 
-})
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+});
 
 // routes
 app.use(
