@@ -10,8 +10,14 @@ import sendMail from "../utils/sendMail";
 import NotificationModel from "../models/notification.Model";
 import { getAllOrdersService, newOrder } from "../services/order.service";
 import { redis } from "../utils/redis";
+import Razorpay from "razorpay";
+import crypto from "crypto";
 require("dotenv").config();
-const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
+
+const razorpay = new Razorpay({
+  key_id: process.env.RAZORPAY_KEY_ID || "",
+  key_secret: process.env.RAZORPAY_KEY_SECRET || "",
+});
 
 // create order
 export const createOrder = CatchAsyncError(
@@ -20,15 +26,22 @@ export const createOrder = CatchAsyncError(
       const { courseId, payment_info } = req.body as IOrder;
 
       if (payment_info) {
-        if ("id" in payment_info) {
-          const paymentIntentId = payment_info.id;
-          const paymentIntent = await stripe.paymentIntents.retrieve(
-            paymentIntentId
-          );
+        const { razorpay_order_id, razorpay_payment_id, razorpay_signature } =
+          payment_info as {
+            razorpay_order_id: string;
+            razorpay_payment_id: string;
+            razorpay_signature: string;
+          };
 
-          if (paymentIntent.status !== "succeeded") {
-            return next(new ErrorHandler("Payment not authorized!", 400));
-          }
+        const body = razorpay_order_id + "|" + razorpay_payment_id;
+
+        const expectedSignature = crypto
+          .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET || "")
+          .update(body.toString())
+          .digest("hex");
+
+        if (expectedSignature !== razorpay_signature) {
+          return next(new ErrorHandler("Payment not authorized!", 400));
         }
       }
 
@@ -44,7 +57,7 @@ export const createOrder = CatchAsyncError(
         );
       }
 
-      const course:ICourse | null = await CourseModel.findById(courseId);
+      const course: ICourse | null = await CourseModel.findById(courseId);
 
       if (!course) {
         return next(new ErrorHandler("Course not found", 404));
@@ -121,36 +134,51 @@ export const getAllOrders = CatchAsyncError(
   }
 );
 
-//  send stripe publishble key
-export const sendStripePublishableKey = CatchAsyncError(
+// send Razorpay key
+export const sendRazorpayKey = CatchAsyncError(
   async (req: Request, res: Response) => {
     res.status(200).json({
-      publishablekey: process.env.STRIPE_PUBLISHABLE_KEY,
+      razorpayKey: process.env.RAZORPAY_KEY_ID,
     });
   }
 );
 
-// new payment
-export const newPayment = CatchAsyncError(
+// create Razorpay order
+export const createRazorpayOrder = CatchAsyncError(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const myPayment = await stripe.paymentIntents.create({
-        amount: req.body.amount,
-        currency: "USD",
-        metadata: {
-          company: "E-Learning",
-        },
-        automatic_payment_methods: {
-          enabled: true,
-        },
-      });
+      console.log("Req Body: ", req.body);
+      const { amount } = req.body.amount;
 
-      res.status(201).json({
+      if (!amount || isNaN(amount) || amount < 100) {
+        return next(
+          new ErrorHandler(
+            "Invalid amount. Amount should be in paise and at least 1 INR",
+            400
+          )
+        );
+      }
+
+      const options = {
+        amount: parseInt(amount),
+        currency: "INR",
+        receipt: crypto.randomBytes(10).toString("hex"),
+      };
+
+      const order = await razorpay.orders.create(options);
+
+      res.status(200).json({
         success: true,
-        client_secret: myPayment.client_secret,
+        order,
       });
     } catch (error: any) {
-      return next(new ErrorHandler(error.message, 500));
+      console.error("Razorpay order creation error:", error);
+      return next(
+        new ErrorHandler(
+          error.message || "Failed to create Razorpay order",
+          500
+        )
+      );
     }
   }
 );

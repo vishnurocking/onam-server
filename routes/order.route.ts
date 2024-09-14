@@ -3,8 +3,8 @@ import { authorizeRoles, isAutheticated } from "../middleware/auth";
 import {
   createOrder,
   getAllOrders,
-  newPayment,
-  sendStripePublishableKey,
+  createRazorpayOrder,
+  sendRazorpayKey,
 } from "../controllers/order.controller";
 const orderRouter = express.Router();
 
@@ -17,8 +17,8 @@ orderRouter.get(
   getAllOrders
 );
 
-orderRouter.get("/payment/stripepublishablekey", sendStripePublishableKey);
+orderRouter.get("/razorpay-key", sendRazorpayKey);
 
-orderRouter.post("/payment", isAutheticated, newPayment);
+orderRouter.post("/create-razorpay-order", isAutheticated, createRazorpayOrder);
 
 export default orderRouter;
