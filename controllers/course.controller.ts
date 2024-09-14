@@ -45,7 +45,7 @@ export const editCourse = CatchAsyncError(
 
       const courseId = req.params.id;
 
-      const courseData = await CourseModel.findById(courseId) as any;
+      const courseData = (await CourseModel.findById(courseId)) as any;
 
       if (thumbnail && !thumbnail.startsWith("https")) {
         await cloudinary.v2.uploader.destroy(courseData.thumbnail.public_id);
@@ -367,7 +367,6 @@ export const addReview = CatchAsyncError(
         message: `${req.user?.name} has given a review in ${course?.name}`,
       });
 
-
       res.status(200).json({
         success: true,
         course,
@@ -415,7 +414,7 @@ export const addReplyToReview = CatchAsyncError(
       }
 
       review.commentReplies?.push(replyData);
-      
+
       await course?.save();
 
       await redis.set(courseId, JSON.stringify(course), "EX", 604800); // 7days
@@ -468,22 +467,21 @@ export const deleteCourse = CatchAsyncError(
 );
 
 // generate video url
-export const generateVideoUrl = CatchAsyncError(
+export const generateBunnyVideoUrl = CatchAsyncError(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { videoId } = req.body;
-      const response = await axios.post(
-        `https://dev.vdocipher.com/api/videos/${videoId}/otp`,
-        { ttl: 300 },
-        {
-          headers: {
-            Accept: "application/json",
-            "Content-Type": "application/json",
-            Authorization: `Apisecret ${process.env.VDOCIPHER_API_SECRET}`,
-          },
-        }
-      );
-      res.json(response.data);
+      const libraryId = process.env.BUNNY_LIBRARY_ID; // Store this in your .env file
+
+      if (!libraryId) {
+        return next(
+          new ErrorHandler("Bunny library ID is not configured", 500)
+        );
+      }
+
+      const videoUrl = `https://iframe.mediadelivery.net/play/${libraryId}/${videoId}`;
+
+      res.json({ videoUrl });
     } catch (error: any) {
       return next(new ErrorHandler(error.message, 400));
     }
